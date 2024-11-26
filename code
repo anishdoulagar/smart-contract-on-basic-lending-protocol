@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: MIT pragma solidity ^0.8.0;
+
+contract SecureLendingProtocol { struct Loan {
+uint256 amount; bool active;
+}
+
+mapping(address => uint256) public deposits; mapping(address => Loan) public loans; uint256 public totalDeposits;
+
+event Deposit(address indexed user, uint256 amount); event Borrow(address indexed user, uint256 amount); event Repay(address indexed user, uint256 amount);
+
+function deposit() external payable {
+require(msg.value > 0, "Deposit amount must be greater than 0"); deposits[msg.sender] += msg.value;
+totalDeposits += msg.value;
+
+emit Deposit(msg.sender, msg.value);
+}
+
+function borrow(uint256 amount) external {
+require(amount > 0, "Borrow amount must be greater than 0"); require(
+deposits[msg.sender] >= amount / 2, "Insufficient collateral"
+);
+ 
+require(
+amount <= address(this).balance - totalDeposits, "Insufficient liquidity"
+);
+require(!loans[msg.sender].active, "Existing loan must be repaid first"); loans[msg.sender] = Loan(amount, true);
+(bool sent, ) = msg.sender.call{value: amount}(""); require(sent, "Transfer failed");
+
+emit Borrow(msg.sender, amount);
+}
+
+function repay() external payable {
+Loan storage loan = loans[msg.sender]; require(loan.active, "No active loan to repay");
+require(msg.value == loan.amount, "Repayment amount mismatch");
+
+loan.active = false; loan.amount = 0;
+
+emit Repay(msg.sender, msg.value);
+}
+
+function getDepositBalance(address user) external view returns (uint256) { return deposits[user];
+}
+
+function getLoanDetails(address user) external view returns (uint256, bool) { Loan memory loan = loans[user];
+return (loan.amount, loan.active);
+}
+}
